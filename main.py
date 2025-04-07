@@ -24,7 +24,6 @@ class AddRequest(BaseModel):
     ciudad2: str
     nueva: str
     distancia1: float
-    distancia2: float
     latitud: float
     longitud: float
 
@@ -32,7 +31,6 @@ class DeleteRequest(BaseModel):
     intermedia: str
     ciudad1: str
     ciudad2: str
-    nueva_distancia: float
 
 # Endpoint POST
 @app.post("/search/{algorithm}")
@@ -55,7 +53,6 @@ def agregar_intermedia(data: AddRequest):
             data.ciudad2,
             data.nueva,
             data.distancia1,
-            data.distancia2,
             data.latitud,
             data.longitud
         )
@@ -68,8 +65,7 @@ def eliminar_intermedia(data: DeleteRequest):
             eliminar_ciudad,
             data.intermedia,
             data.ciudad1,
-            data.ciudad2,
-            data.nueva_distancia
+            data.ciudad2
         )
     return {"message": f"{data.intermedia} eliminada entre {data.ciudad1} y {data.ciudad2}, conectados directamente"}
 

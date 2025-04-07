@@ -18,6 +18,7 @@ def obtener_grafo(tx):
         a.longitud AS origen_longitud,
         b.latitud AS destino_latitud,
         b.longitud AS destino_longitud
+    ORDER BY origen ASC
     """
     result = tx.run(query)
 
@@ -43,29 +44,40 @@ def obtener_grafo(tx):
             }
 
         grafo[origen]["vecinos"][destino] = distancia
-    return grafo
+    return dict(sorted(grafo.items()))
 
-def agregar_ciudad(tx, ciudad1, ciudad2, nueva_ciudad, distancia1, distancia2, lat, lon):
+def agregar_ciudad(tx, ciudad1, ciudad2, nueva_ciudad, distancia1, lat, lon):
     query = """
-    MATCH (a:Ciudad {nombre: $ciudad1})-[r:CONECTADO_A]-(b:Ciudad {nombre: $ciudad2})
-    DELETE r
+    MATCH (a:Ciudad {nombre: $ciudad1})-[r1:CONECTADO_A]-(b:Ciudad {nombre: $ciudad2})
+    // Llevamos la relación completa (r1) en el WITH, no solo su distancia
+    WITH a, b, r1, r1.distancia AS distancia_original
+    WITH a, b, r1, distancia_original, $distancia1 AS distancia_nueva
+    WITH a, b, r1, distancia_original, distancia_nueva, distancia_original - distancia_nueva AS distancia_restante
+    // Ahora podemos eliminar r1 porque la mantenemos en el WITH
+    DELETE r1
+    // Crear la nueva ciudad
     CREATE (nueva:Ciudad {nombre: $nueva_ciudad, latitud: $lat, longitud: $lon})
-    CREATE (a)-[:CONECTADO_A {distancia: $distancia1}]->(nueva),
-           (nueva)-[:CONECTADO_A {distancia: $distancia2}]->(b),
-           (nueva)-[:CONECTADO_A {distancia: $distancia2}]->(a),
-           (b)-[:CONECTADO_A {distancia: $distancia2}]->(nueva)
+    // Crear las nuevas relaciones
+    CREATE (nueva)-[:CONECTADO_A {distancia: distancia_restante}]->(b)
+    CREATE (nueva)-[:CONECTADO_A {distancia: distancia_nueva}]->(a)
     """
     tx.run(query, ciudad1=ciudad1, ciudad2=ciudad2, nueva_ciudad=nueva_ciudad,
-           distancia1=distancia1, distancia2=distancia2, lat=lat, lon=lon)
+           distancia1=distancia1, lat=lat, lon=lon)
 
-# Eliminar conexión entre dos ciudades intermedias y conectar extremos
-def eliminar_ciudad(tx, ciudad_intermedia, ciudad1, ciudad2, nueva_distancia):
+def eliminar_ciudad(tx, ciudad_intermedia, ciudad1, ciudad2):
     query = """
     MATCH (a:Ciudad {nombre: $ciudad1})-[r1:CONECTADO_A]-(c:Ciudad {nombre: $ciudad_intermedia})-[r2:CONECTADO_A]-(b:Ciudad {nombre: $ciudad2})
-    DELETE r1, r2
-    MERGE (a)-[:CONECTADO_A {distancia: $nueva_distancia}]->(b)
-    MERGE (b)-[:CONECTADO_A {distancia: $nueva_distancia}]->(a)
+    WITH a, b, c, r1, r2, r1.distancia + r2.distancia AS nueva_distancia
+
+    MERGE (a)-[r_nuevo1:CONECTADO_A]->(b)
+    SET r_nuevo1.distancia = nueva_distancia
+
+    MERGE (b)-[r_nuevo2:CONECTADO_A]->(a)
+    SET r_nuevo2.distancia = nueva_distancia
+
+    WITH a, b, c  // Necesario para seguir usando estas variables después
+    MATCH (a)-[r1_old:CONECTADO_A]-(c)-[r2_old:CONECTADO_A]-(b)
+    DELETE r1_old, r2_old
     """
-    tx.run(query, ciudad1=ciudad1, ciudad2=ciudad2,
-           ciudad_intermedia=ciudad_intermedia, nueva_distancia=nueva_distancia)
+    tx.run(query, ciudad1=ciudad1, ciudad2=ciudad2, ciudad_intermedia=ciudad_intermedia)
 

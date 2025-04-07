@@ -1,11 +1,18 @@
 import heapq
 import math
-import services.graph_connection as graph_con
+from services.graph_connection import driver, obtener_grafo
+
+def getGraph():
+    with driver.session() as session:
+        grafo = session.execute_read(obtener_grafo)
+    return grafo
+
+grafo = getGraph()
 
 def haversine_heuristic(origin, destination):
     #Calcula la distancia entre dos ciudades usando latitud y longitud
-    coord1 = graph_con.grafo[origin]["coordenadas"]
-    coord2 = graph_con.grafo[destination]["coordenadas"]
+    coord1 = grafo[origin]["coordenadas"]
+    coord2 = grafo[destination]["coordenadas"]
     lat1, lon1 = coord1["latitud"], coord1["longitud"]
     lat2, lon2 = coord2["latitud"], coord2["longitud"]
 
@@ -20,7 +27,6 @@ def haversine_heuristic(origin, destination):
     return c * r
 
 def a_star_search(origin, destination):
-    graph = graph_con.grafo
     fringe = []
     heapq.heappush(fringe, (0, origin))
     parent = {origin: None}
@@ -32,7 +38,7 @@ def a_star_search(origin, destination):
         if actual == destination:
             break
         
-        for next, cost in graph[actual]["vecinos"].items():
+        for next, cost in grafo[actual]["vecinos"].items():
             new_cost = actual_cost[actual] + cost
             if next not in actual_cost or new_cost < actual_cost[next]:
                 actual_cost[next] = new_cost
@@ -54,7 +60,7 @@ def a_star_search(origin, destination):
     return route, actual_cost.get(destination, float('inf'))
 
 def greedy_search(origin, destination):
-    graph = graph_con.grafo  # Asumo que 'graph' es tu estructura de datos con el grafo
+    graph = grafo  # Asumo que 'graph' es tu estructura de datos con el grafo
     fringe = []
     heapq.heappush(fringe, (0, origin))
     parent = {origin: None}
@@ -93,7 +99,7 @@ def greedy_search(origin, destination):
     return [route, total_distance]
 
 def dijkstra_search(origin, destination):
-    graph = graph_con.grafo
+    graph = grafo
     fringe = []
     heapq.heappush(fringe, (0, origin))
     parent = {origin: None}
@@ -125,13 +131,13 @@ def dijkstra_search(origin, destination):
     
     return route, actual_cost.get(destination, float('inf'))
 
-def search_route(algorithm, inicio, objetivo):
+def search_route(algorithm, origin, destination):
     if algorithm == 1:
-        return a_star_search(inicio, objetivo)
+        return a_star_search(origin, destination)
     elif algorithm == 2:
-        return greedy_search(inicio, objetivo)
+        return greedy_search(origin, destination)
     else:
-        return dijkstra_search(inicio, objetivo)
+        return dijkstra_search(origin, destination)
 
 # Prueba
 # print(dijkstra("Ambato", "Quito"))
