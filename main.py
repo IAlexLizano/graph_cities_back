@@ -2,7 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import services.search_algorithms as alg
 from pydantic import BaseModel
-import services.graph_connection as grap
+from services.graph_connection import driver, agregar_ciudad, eliminar_ciudad, obtener_grafo
+
 
 app = FastAPI()
 
@@ -18,6 +19,21 @@ class SearchRequest(BaseModel):
     origen: str
     destino: str
 
+class AddRequest(BaseModel):
+    ciudad1: str
+    ciudad2: str
+    nueva: str
+    distancia1: float
+    distancia2: float
+    latitud: float
+    longitud: float
+
+class DeleteRequest(BaseModel):
+    intermedia: str
+    ciudad1: str
+    ciudad2: str
+    nueva_distancia: float
+
 # Endpoint POST
 @app.post("/search/{algorithm}")
 def search(algorithm: int, data: SearchRequest):
@@ -26,7 +42,36 @@ def search(algorithm: int, data: SearchRequest):
 
 @app.get("/graph")
 def getGraph():
-    return grap.grafo
+    with driver.session() as session:
+        grafo = session.execute_read(obtener_grafo)
+    return grafo
+
+@app.post("/graph/add-city")
+def agregar_intermedia(data: AddRequest):
+    with driver.session() as session:
+        session.execute_write(
+            agregar_ciudad,
+            data.ciudad1,
+            data.ciudad2,
+            data.nueva,
+            data.distancia1,
+            data.distancia2,
+            data.latitud,
+            data.longitud
+        )
+    return {"message": f"{data.nueva} agregada entre {data.ciudad1} y {data.ciudad2}"}
+
+@app.post("/graph/delete-city")
+def eliminar_intermedia(data: DeleteRequest):
+    with driver.session() as session:
+        session.execute_write(
+            eliminar_ciudad,
+            data.intermedia,
+            data.ciudad1,
+            data.ciudad2,
+            data.nueva_distancia
+        )
+    return {"message": f"{data.intermedia} eliminada entre {data.ciudad1} y {data.ciudad2}, conectados directamente"}
 
 if __name__ == "__main__":
     import uvicorn

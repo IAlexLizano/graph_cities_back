@@ -45,34 +45,27 @@ def obtener_grafo(tx):
         grafo[origen]["vecinos"][destino] = distancia
     return grafo
 
-# def agregar_ciudad_intermedia(tx, ciudad1, ciudad2, nueva_ciudad, distancia1, distancia2, lat, lon):
-#     query = """
-#     MATCH (a:Ciudad {nombre: $ciudad1})-[r:CONECTADO_A]-(b:Ciudad {nombre: $ciudad2})
-#     DELETE r
-#     CREATE (nueva:Ciudad {nombre: $nueva_ciudad, latitud: $lat, longitud: $lon})
-#     CREATE (a)-[:CONECTADO_A {distancia: $distancia1}]->(nueva),
-#            (nueva)-[:CONECTADO_A {distancia: $distancia2}]->(b),
-#            (nueva)-[:CONECTADO_A {distancia: $distancia2}]->(a),
-#            (b)-[:CONECTADO_A {distancia: $distancia2}]->(nueva)
-#     """
-#     tx.run(query, ciudad1=ciudad1, ciudad2=ciudad2, nueva_ciudad=nueva_ciudad,
-#            distancia1=distancia1, distancia2=distancia2, lat=lat, lon=lon)
+def agregar_ciudad(tx, ciudad1, ciudad2, nueva_ciudad, distancia1, distancia2, lat, lon):
+    query = """
+    MATCH (a:Ciudad {nombre: $ciudad1})-[r:CONECTADO_A]-(b:Ciudad {nombre: $ciudad2})
+    DELETE r
+    CREATE (nueva:Ciudad {nombre: $nueva_ciudad, latitud: $lat, longitud: $lon})
+    CREATE (a)-[:CONECTADO_A {distancia: $distancia1}]->(nueva),
+           (nueva)-[:CONECTADO_A {distancia: $distancia2}]->(b),
+           (nueva)-[:CONECTADO_A {distancia: $distancia2}]->(a),
+           (b)-[:CONECTADO_A {distancia: $distancia2}]->(nueva)
+    """
+    tx.run(query, ciudad1=ciudad1, ciudad2=ciudad2, nueva_ciudad=nueva_ciudad,
+           distancia1=distancia1, distancia2=distancia2, lat=lat, lon=lon)
 
-# # Eliminar conexión entre dos ciudades intermedias y conectar extremos
-# def eliminar_ciudad_intermedia(tx, ciudad_intermedia, ciudad1, ciudad2, nueva_distancia):
-#     query = """
-#     MATCH (a:Ciudad {nombre: $ciudad1})-[r1:CONECTADO_A]-(c:Ciudad {nombre: $ciudad_intermedia})-[r2:CONECTADO_A]-(b:Ciudad {nombre: $ciudad2})
-#     DELETE r1, r2
-#     MERGE (a)-[:CONECTADO_A {distancia: $nueva_distancia}]->(b)
-#     MERGE (b)-[:CONECTADO_A {distancia: $nueva_distancia}]->(a)
-#     """
-#     tx.run(query, ciudad1=ciudad1, ciudad2=ciudad2,
-#            ciudad_intermedia=ciudad_intermedia, nueva_distancia=nueva_distancia)
-
-
-# Obtener el grafo desde Neo4j
-with driver.session() as session:
-    grafo = session.execute_read(obtener_grafo)
-
-driver.close()
+# Eliminar conexión entre dos ciudades intermedias y conectar extremos
+def eliminar_ciudad(tx, ciudad_intermedia, ciudad1, ciudad2, nueva_distancia):
+    query = """
+    MATCH (a:Ciudad {nombre: $ciudad1})-[r1:CONECTADO_A]-(c:Ciudad {nombre: $ciudad_intermedia})-[r2:CONECTADO_A]-(b:Ciudad {nombre: $ciudad2})
+    DELETE r1, r2
+    MERGE (a)-[:CONECTADO_A {distancia: $nueva_distancia}]->(b)
+    MERGE (b)-[:CONECTADO_A {distancia: $nueva_distancia}]->(a)
+    """
+    tx.run(query, ciudad1=ciudad1, ciudad2=ciudad2,
+           ciudad_intermedia=ciudad_intermedia, nueva_distancia=nueva_distancia)
 
