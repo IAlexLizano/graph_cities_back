@@ -18,6 +18,8 @@ class SearchRequest(BaseModel):
     origen: str
     destino: str
 
+
+
 # Endpoint POST
 @app.post("/search/{algorithm}")
 def search(algorithm: int, data: SearchRequest):
@@ -27,6 +29,21 @@ def search(algorithm: int, data: SearchRequest):
 @app.get("/graph")
 def getGraph():
     return grap.grafo
+
+@app.delete("/city/{city_name}")
+def eliminar_ciudad(city_name: str):
+    if city_name in grap.grafo:
+        del grap.grafo[city_name]
+        return {"message": f"Ciudad {city_name} eliminada"}
+    return {"message": "Ciudad no encontrada"}
+
+@app.post("/city")
+def agregar_ciudad(ciudad: dict):
+    nombre = ciudad["name"]
+    if nombre not in grap.grafo:
+        grap.grafo[nombre] = ciudad["vecinos"]
+        return {"message": f"Ciudad {nombre} agregada con éxito"}
+    return {"message": "Ciudad ya existe"}
 
 if __name__ == "__main__":
     import uvicorn
