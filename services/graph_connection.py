@@ -48,21 +48,56 @@ def obtener_grafo(tx):
 
 def agregar_ciudad(tx, ciudad1, ciudad2, nueva_ciudad, distancia1, lat, lon):
     query = """
-    MATCH (a:Ciudad {nombre: $ciudad1})-[r1:CONECTADO_A]-(b:Ciudad {nombre: $ciudad2})
-    // Llevamos la relación completa (r1) en el WITH, no solo su distancia
-    WITH a, b, r1, r1.distancia AS distancia_original
-    WITH a, b, r1, distancia_original, $distancia1 AS distancia_nueva
-    WITH a, b, r1, distancia_original, distancia_nueva, distancia_original - distancia_nueva AS distancia_restante
-    // Ahora podemos eliminar r1 porque la mantenemos en el WITH
+    // Verificar si la conexión original existe
+    OPTIONAL MATCH (a:Ciudad {nombre: $ciudad1})-[r1:CONECTADO_A]-(b:Ciudad {nombre: $ciudad2})
+    WITH a, b, r1, 
+         CASE WHEN r1 IS NOT NULL THEN r1.distancia ELSE 0 END AS distancia_total,
+         $distancia1 AS distancia_nueva
+    
+    // Validar que ambas ciudades existan y la distancia sea válida
+    WHERE a IS NOT NULL AND b IS NOT NULL AND 
+          (r1 IS NULL OR distancia_nueva <= distancia_total)
+    
+    // Crear o encontrar la nueva ciudad (solo establece coordenadas si es nueva)
+    MERGE (nueva:Ciudad {nombre: $nueva_ciudad})
+    ON CREATE SET nueva.latitud = $lat, nueva.longitud = $lon
+    
+    // Si existía una conexión original, eliminarla
     DELETE r1
-    // Crear la nueva ciudad
-    CREATE (nueva:Ciudad {nombre: $nueva_ciudad, latitud: $lat, longitud: $lon})
-    // Crear las nuevas relaciones
-    CREATE (nueva)-[:CONECTADO_A {distancia: distancia_restante}]->(b)
-    CREATE (nueva)-[:CONECTADO_A {distancia: distancia_nueva}]->(a)
+    
+    // Crear conexiones con la nueva ciudad (o actualizar si ya existían)
+    MERGE (a)-[r_a_nueva:CONECTADO_A]->(nueva)
+    SET r_a_nueva.distancia = $distancia1
+    MERGE (nueva)-[r_nueva_a:CONECTADO_A]->(a)
+    SET r_nueva_a.distancia = $distancia1
+    
+    // Calcular distancia restante (si había conexión original)
+    WITH a, b, nueva, distancia_total, distancia_nueva,
+         CASE WHEN distancia_total > 0 
+              THEN distancia_total - distancia_nueva 
+              ELSE $distancia1 END AS distancia_restante
+    
+    // Crear conexiones con la otra ciudad
+    MERGE (b)-[r_b_nueva:CONECTADO_A]->(nueva)
+    SET r_b_nueva.distancia = distancia_restante
+    MERGE (nueva)-[r_nueva_b:CONECTADO_A]->(b)
+    SET r_nueva_b.distancia = distancia_restante
+    
+    RETURN true AS exito, 
+           CASE WHEN distancia_total > 0 
+                THEN 'Conexión actualizada' 
+                ELSE 'Nueva conexión creada' END AS mensaje
     """
-    tx.run(query, ciudad1=ciudad1, ciudad2=ciudad2, nueva_ciudad=nueva_ciudad,
-           distancia1=distancia1, lat=lat, lon=lon)
+    try:
+        result = tx.run(query, ciudad1=ciudad1, ciudad2=ciudad2, nueva_ciudad=nueva_ciudad,
+                       distancia1=distancia1, lat=lat, lon=lon)
+        record = result.single()
+        print(result)
+        if record:
+            return record["exito"], record["mensaje"]
+        return False, "No se encontraron las ciudades especificadas"
+    except Exception as e:
+        return False, f"Error: {str(e)}"
 
 def eliminar_ciudad(tx, ciudad_intermedia, ciudad1, ciudad2):
     query = """
