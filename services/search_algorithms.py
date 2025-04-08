@@ -2,13 +2,24 @@ import heapq
 import math
 from services.graph_connection import driver, obtener_grafo
 
-def getGraph():
-    with driver.session() as session:
-        grafo = session.execute_read(obtener_grafo)
-    return grafo
+# Variable global para almacenar el grafo en caché
+_cached_graph = None
+_graph_version = 0
 
-def haversine_heuristic(origin, destination):
-    grafo = getGraph()
+def get_graph(refresh=False):
+    global _cached_graph, _graph_version
+    if refresh or _cached_graph is None:
+        with driver.session() as session:
+            _cached_graph = session.execute_read(obtener_grafo)
+        _graph_version += 1
+        driver.close()
+    return _cached_graph, _graph_version
+
+def invalidate_graph_cache():
+    global _cached_graph
+    _cached_graph = None
+
+def haversine_heuristic(origin, destination, grafo):
     #Calcula la distancia entre dos ciudades usando latitud y longitud
     coord1 = grafo[origin]["coordenadas"]
     coord2 = grafo[destination]["coordenadas"]
@@ -25,8 +36,7 @@ def haversine_heuristic(origin, destination):
     r = 6371
     return c * r
 
-def a_star_search(origin, destination):
-    grafo = getGraph()
+def a_star_search(origin, destination, grafo):
     fringe = []
     heapq.heappush(fringe, (0, origin))
     parent = {origin: None}
@@ -42,7 +52,7 @@ def a_star_search(origin, destination):
             new_cost = actual_cost[actual] + cost
             if next not in actual_cost or new_cost < actual_cost[next]:
                 actual_cost[next] = new_cost
-                prioridad = new_cost + haversine_heuristic(next, destination)
+                prioridad = new_cost + haversine_heuristic(next, destination, grafo)
                 heapq.heappush(fringe, (prioridad, next))
                 parent[next] = actual
 
@@ -59,13 +69,12 @@ def a_star_search(origin, destination):
     
     return route, actual_cost.get(destination, float('inf'))
 
-def greedy_search(origin, destination):
-    grafo = getGraph()
-    graph = grafo  # Asumo que 'graph' es tu estructura de datos con el grafo
+def greedy_search(origin, destination, grafo):
+    graph = grafo
     fringe = []
     heapq.heappush(fringe, (0, origin))
     parent = {origin: None}
-    actual_distance = {origin: 0}  # Diccionario para guardar distancias acumuladas
+    actual_distance = {origin: 0}
 
     while fringe:
         actual = heapq.heappop(fringe)[1]
@@ -75,11 +84,9 @@ def greedy_search(origin, destination):
         
         for next, distance in graph[actual]["vecinos"].items():
             if next not in parent:
-                # Usamos la heurística para la prioridad (como antes)
-                priority = haversine_heuristic(next, destination)
+                priority = haversine_heuristic(next, destination, grafo)
                 heapq.heappush(fringe, (priority, next))
                 parent[next] = actual
-                # Guardamos la distancia acumulada
                 actual_distance[next] = actual_distance[actual] + distance
 
     # Reconstruir el camino y calcular distancia total
@@ -90,7 +97,6 @@ def greedy_search(origin, destination):
         if actual is None:  # No hay camino
             return []
         route.append(actual)
-        # Sumamos la distancia de este paso
         total_distance += graph[parent[actual]]["vecinos"][actual]
         actual = parent[actual]
     
@@ -99,8 +105,7 @@ def greedy_search(origin, destination):
     
     return [route, total_distance]
 
-def dijkstra_search(origin, destination):
-    grafo = getGraph()
+def dijkstra_search(origin, destination, grafo):
     graph = grafo
     fringe = []
     heapq.heappush(fringe, (0, origin))
@@ -134,12 +139,10 @@ def dijkstra_search(origin, destination):
     return route, actual_cost.get(destination, float('inf'))
 
 def search_route(algorithm, origin, destination):
+    grafo, _ = get_graph()
     if algorithm == 1:
-        return a_star_search(origin, destination)
+        return a_star_search(origin, destination, grafo)
     elif algorithm == 2:
-        return greedy_search(origin, destination)
+        return greedy_search(origin, destination, grafo)
     else:
-        return dijkstra_search(origin, destination)
-
-# Prueba
-# print(dijkstra("Ambato", "Quito"))
+        return dijkstra_search(origin, destination, grafo)

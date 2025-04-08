@@ -4,7 +4,6 @@ import services.search_algorithms as alg
 from pydantic import BaseModel
 from services.graph_connection import driver, agregar_ciudad, eliminar_ciudad, obtener_grafo
 
-
 app = FastAPI()
 
 app.add_middleware(
@@ -32,16 +31,14 @@ class DeleteRequest(BaseModel):
     ciudad1: str
     ciudad2: str
 
-# Endpoint POST
 @app.post("/search/{algorithm}")
 def search(algorithm: int, data: SearchRequest):
     result = alg.search_route(algorithm, data.origen, data.destino)
     return result    
 
 @app.get("/graph")
-def getGraph():
-    with driver.session() as session:
-        grafo = session.execute_read(obtener_grafo)
+def get_graph():
+    grafo, version = alg.get_graph(refresh=True)
     return grafo
 
 @app.post("/graph/add-city")
@@ -56,6 +53,8 @@ def agregar_intermedia(data: AddRequest):
             data.latitud,
             data.longitud
         )
+    # Invalidar la caché después de modificar el grafo
+    alg.invalidate_graph_cache()
     return {"message": f"{data.nueva} agregada entre {data.ciudad1} y {data.ciudad2}"}
 
 @app.post("/graph/delete-city")
@@ -67,6 +66,8 @@ def eliminar_intermedia(data: DeleteRequest):
             data.ciudad1,
             data.ciudad2
         )
+    # Invalidar la caché después de modificar el grafo
+    alg.invalidate_graph_cache()
     return {"message": f"{data.intermedia} eliminada entre {data.ciudad1} y {data.ciudad2}, conectados directamente"}
 
 if __name__ == "__main__":
