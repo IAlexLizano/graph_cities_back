@@ -7,9 +7,8 @@ def getGraph():
         grafo = session.execute_read(obtener_grafo)
     return grafo
 
-grafo = getGraph()
-
 def haversine_heuristic(origin, destination):
+    grafo = getGraph()
     #Calcula la distancia entre dos ciudades usando latitud y longitud
     coord1 = grafo[origin]["coordenadas"]
     coord2 = grafo[destination]["coordenadas"]
@@ -27,6 +26,7 @@ def haversine_heuristic(origin, destination):
     return c * r
 
 def a_star_search(origin, destination):
+    grafo = getGraph()
     fringe = []
     heapq.heappush(fringe, (0, origin))
     parent = {origin: None}
@@ -60,6 +60,7 @@ def a_star_search(origin, destination):
     return route, actual_cost.get(destination, float('inf'))
 
 def greedy_search(origin, destination):
+    grafo = getGraph()
     graph = grafo  # Asumo que 'graph' es tu estructura de datos con el grafo
     fringe = []
     heapq.heappush(fringe, (0, origin))
@@ -99,6 +100,7 @@ def greedy_search(origin, destination):
     return [route, total_distance]
 
 def dijkstra_search(origin, destination):
+    grafo = getGraph()
     graph = grafo
     fringe = []
     heapq.heappush(fringe, (0, origin))
