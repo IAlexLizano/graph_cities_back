@@ -1,24 +1,34 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import services.search_algorithms as alg
 from pydantic import BaseModel
-from services.graph_connection import driver, agregar_ciudad, eliminar_ciudad, obtener_grafo
+from services.graph_connection import Neo4jGraphManager
+from typing import Optional
 
 app = FastAPI()
 
+# Configuración CORS (recomendado ser más restrictivo en producción)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # En producción, especifica los dominios permitidos
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# Inicialización del manager Neo4j
+neo4j_mgr = Neo4jGraphManager(
+    "neo4j+s://c547b307.databases.neo4j.io",
+    "neo4j",
+    "FlX8y9LhsGZdOzn2sPv05t6izI5aB0hiycJCVZQ8r5k"
+)
+
+# Modelos Pydantic
 class SearchRequest(BaseModel):
     origen: str
     destino: str
 
-class AddRequest(BaseModel):
+class AddIntermediateRequest(BaseModel):
     ciudad1: str
     ciudad2: str
     nueva: str
@@ -26,26 +36,60 @@ class AddRequest(BaseModel):
     latitud: float
     longitud: float
 
-class DeleteRequest(BaseModel):
+class DeleteIntermediateRequest(BaseModel):
     intermedia: str
     ciudad1: str
     ciudad2: str
 
+class AddNodeRequest(BaseModel):
+    ciudad_existente: str
+    nueva_ciudad: str
+    distancia: float
+    latitud: float
+    longitud: float
+
+class AddRelationshipRequest(BaseModel):
+    ciudad1: str
+    ciudad2: str
+    distancia: float
+
+class DeleteNodeRequest(BaseModel):
+    nombre_ciudad: str
+
+class DeleteRelationshipRequest(BaseModel):
+    ciudad1: str
+    ciudad2: str
+
+# Endpoints
 @app.post("/search/{algorithm}")
-def search(algorithm: int, data: SearchRequest):
-    result = alg.search_route(algorithm, data.origen, data.destino)
-    return result    
+async def search_route(algorithm: int, data: SearchRequest):
+    try:
+        grafo, _ = alg.get_graph()
+        if data.origen not in grafo or data.destino not in grafo:
+            raise KeyError("Una de las ciudades no existe en el grafo")
+            
+        result = alg.search_route(algorithm, data.origen, data.destino)
+        return result
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=f"Ciudad no encontrada: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/graph")
-def get_graph():
-    grafo, version = alg.get_graph(refresh=True)
-    return grafo
+async def get_graph():
+    try:
+        grafo = neo4j_mgr.obtener_grafo()
+        return grafo
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/graph/add-city")
-def agregar_intermedia(data: AddRequest):
-    with driver.session() as session:
-        session.execute_write(
-            agregar_ciudad,
+@app.post("/graph/add-intermediate")
+async def add_intermediate_city(data: AddIntermediateRequest):
+    try:
+        if not neo4j_mgr.existe_ciudad(data.ciudad1) or not neo4j_mgr.existe_ciudad(data.ciudad2):
+            raise HTTPException(status_code=404, detail="Una de las ciudades no existe")
+            
+        success = neo4j_mgr.agregar_intermedia(
             data.ciudad1,
             data.ciudad2,
             data.nueva,
@@ -53,22 +97,85 @@ def agregar_intermedia(data: AddRequest):
             data.latitud,
             data.longitud
         )
-    # Invalidar la caché después de modificar el grafo
-    alg.invalidate_graph_cache()
-    return {"message": f"{data.nueva} agregada entre {data.ciudad1} y {data.ciudad2}"}
+        if not success:
+            raise HTTPException(status_code=400, detail="No se pudo agregar la ciudad intermedia")
+            
+        alg.invalidate_graph_cache()
+        return {"success": True, "message": f"{data.nueva} agregada entre {data.ciudad1} y {data.ciudad2}"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/graph/delete-city")
-def eliminar_intermedia(data: DeleteRequest):
-    with driver.session() as session:
-        session.execute_write(
-            eliminar_ciudad,
+@app.post("/graph/delete-intermediate")
+async def delete_intermediate_city(data: DeleteIntermediateRequest):
+    try:
+        success = neo4j_mgr.eliminar_intermedia(
             data.intermedia,
             data.ciudad1,
             data.ciudad2
         )
-    # Invalidar la caché después de modificar el grafo
-    alg.invalidate_graph_cache()
-    return {"message": f"{data.intermedia} eliminada entre {data.ciudad1} y {data.ciudad2}, conectados directamente"}
+        if success:
+            alg.invalidate_graph_cache()
+            return {"success": True, "message": f"{data.intermedia} eliminada y {data.ciudad1} reconectada con {data.ciudad2}"}
+        raise HTTPException(status_code=400, detail="No se pudo eliminar la ciudad intermedia")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/graph/add-node")
+async def add_city_node(data: AddNodeRequest):
+    try:
+        success = neo4j_mgr.agregar_ciudad_simple(
+            data.ciudad_existente,
+            data.nueva_ciudad,
+            data.distancia,
+            data.latitud,
+            data.longitud
+        )
+        if success:
+            alg.invalidate_graph_cache()
+            return {"success": True, "message": f"{data.nueva_ciudad} agregada y conectada a {data.ciudad_existente}"}
+        raise HTTPException(status_code=400, detail="No se pudo agregar la nueva ciudad")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/graph/add-relationship")
+async def add_city_relationship(data: AddRelationshipRequest):
+    try:
+        success = neo4j_mgr.agregar_relacion(
+            data.ciudad1,
+            data.ciudad2,
+            data.distancia
+        )
+        if success:
+            alg.invalidate_graph_cache()
+            return {"success": True, "message": f"Conexión agregada entre {data.ciudad1} y {data.ciudad2}"}
+        raise HTTPException(status_code=400, detail="No se pudo agregar la relación")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/graph/delete-node")
+async def delete_city_node(data: DeleteNodeRequest):
+    try:
+        success = neo4j_mgr.eliminar_nodo(data.nombre_ciudad)
+        if success:
+            alg.invalidate_graph_cache()
+            return {"success": True, "message": f"{data.nombre_ciudad} eliminada del grafo"}
+        raise HTTPException(status_code=400, detail="No se pudo eliminar la ciudad")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/graph/delete-relationship")
+async def delete_city_relationship(data: DeleteRelationshipRequest):
+    try:
+        success = neo4j_mgr.eliminar_relacion(data.ciudad1, data.ciudad2)
+        if success:
+            alg.invalidate_graph_cache()
+            return {"success": True, "message": f"Conexión eliminada entre {data.ciudad1} y {data.ciudad2}"}
+        raise HTTPException(status_code=400, detail="No se pudo eliminar la relación")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 if __name__ == "__main__":
     import uvicorn
