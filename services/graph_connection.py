@@ -1,9 +1,7 @@
 from neo4j import GraphDatabase
-from neo4j.exceptions import Neo4jError
 import threading
-from functools import lru_cache
 
-class Neo4jGraphManager:
+class GraphManager:
     def __init__(self, uri, user, password):
         self._driver = GraphDatabase.driver(
             uri,
@@ -29,14 +27,13 @@ class Neo4jGraphManager:
         with self._driver.session() as session:
             return session.execute_write(tx_func, **kwargs)
 
-    @lru_cache(maxsize=1)
-    def obtener_grafo(self):
+    def obtain_graph(self):
         """Obtiene todo el grafo de ciudades y conexiones"""
         with self._lock:
-            return self._execute_read(self._tx_obtener_grafo)
+            return self._execute_read(self._tx_obtain_graph)
 
     @staticmethod
-    def _tx_obtener_grafo(tx):
+    def _tx_obtain_graph(tx):
         query = """
         MATCH (a:Ciudad)-[r:CONECTADO_A]-(b:Ciudad)
         RETURN a.nombre AS origen, 
@@ -74,22 +71,22 @@ class Neo4jGraphManager:
             grafo[origen]["vecinos"][destino] = distancia
         return dict(sorted(grafo.items()))
 
-    def existe_ciudad(self, nombre_ciudad):
+    def exists_city(self, nombre_ciudad):
         """Verifica si una ciudad existe"""
         with self._lock:
-            return self._execute_read(self._tx_existe_ciudad, nombre=nombre_ciudad)
+            return self._execute_read(self._tx_exists_city, nombre=nombre_ciudad)
 
     @staticmethod
-    def _tx_existe_ciudad(tx, nombre):
+    def _tx_exists_city(tx, nombre):
         query = "MATCH (c:Ciudad {nombre: $nombre}) RETURN count(c) > 0 AS existe"
         result = tx.run(query, nombre=nombre)
         return result.single()["existe"]
 
-    def agregar_intermedia(self, ciudad1, ciudad2, nueva_ciudad, distancia1, lat, lon):
+    def add_intermediate(self, ciudad1, ciudad2, nueva_ciudad, distancia1, lat, lon):
         """Agrega una ciudad intermedia entre dos ciudades existentes"""
         with self._lock:
             return self._execute_write(
-                self._tx_agregar_intermedia,
+                self._tx_add_intermediate,
                 ciudad1=ciudad1,
                 ciudad2=ciudad2,
                 nueva_ciudad=nueva_ciudad,
@@ -99,7 +96,7 @@ class Neo4jGraphManager:
             )
 
     @staticmethod
-    def _tx_agregar_intermedia(tx, ciudad1, ciudad2, nueva_ciudad, distancia1, lat, lon):
+    def _tx_add_intermediate(tx, ciudad1, ciudad2, nueva_ciudad, distancia1, lat, lon):
         query = """
         MATCH (a:Ciudad {nombre: $ciudad1})-[r:CONECTADO_A]-(b:Ciudad {nombre: $ciudad2})
         WITH a, b, r, r.distancia AS distancia_total
@@ -130,18 +127,18 @@ class Neo4jGraphManager:
         result = tx.run(query, parameters=params)
         return result.single()["exito"]
 
-    def eliminar_intermedia(self, intermedia, ciudad1, ciudad2):
+    def delete_intermediate(self, intermedia, ciudad1, ciudad2):
         """Elimina una ciudad intermedia y reconecta las ciudades originales"""
         with self._lock:
             return self._execute_write(
-                self._tx_eliminar_intermedia,
+                self._tx_delete_intermediate,
                 intermedia=intermedia,
                 ciudad1=ciudad1,
                 ciudad2=ciudad2
             )
 
     @staticmethod
-    def _tx_eliminar_intermedia(tx, intermedia, ciudad1, ciudad2):
+    def _tx_delete_intermediate(tx, intermedia, ciudad1, ciudad2):
         query = """
         MATCH (a:Ciudad {nombre: $ciudad1})-[r1:CONECTADO_A]-(c:Ciudad {nombre: $intermedia})-[r2:CONECTADO_A]-(b:Ciudad {nombre: $ciudad2})
         WITH a, b, c, r1, r2, r1.distancia + r2.distancia AS nueva_distancia
@@ -153,11 +150,6 @@ class Neo4jGraphManager:
         SET nueva2.distancia = nueva_distancia
         
         DELETE r1, r2
-        WITH c
-        OPTIONAL MATCH (c)-[r]-()
-        WITH c, count(r) AS conexiones_restantes
-        WHERE conexiones_restantes = 0
-        DELETE c
         
         RETURN true AS exito
         """
@@ -171,11 +163,11 @@ class Neo4jGraphManager:
         result = tx.run(query, parameters=params)
         return result.single()["exito"]
 
-    def agregar_ciudad_simple(self, ciudad_existente, nueva_ciudad, distancia, lat, lon):
+    def add_city(self, ciudad_existente, nueva_ciudad, distancia, lat, lon):
         """Agrega una nueva ciudad conectada a una existente"""
         with self._lock:
             return self._execute_write(
-                self._tx_agregar_ciudad_simple,
+                self._tx_add_city,
                 ciudad_existente=ciudad_existente,
                 nueva_ciudad=nueva_ciudad,
                 distancia=distancia,
@@ -184,7 +176,7 @@ class Neo4jGraphManager:
             )
 
     @staticmethod
-    def _tx_agregar_ciudad_simple(tx, ciudad_existente, nueva_ciudad, distancia, lat, lon):
+    def _tx_add_city(tx, ciudad_existente, nueva_ciudad, distancia, lat, lon):
         query = """
         MATCH (existente:Ciudad {nombre: $ciudad_existente})
         CREATE (nueva:Ciudad {nombre: $nueva_ciudad, latitud: $lat, longitud: $lon})
@@ -203,18 +195,18 @@ class Neo4jGraphManager:
         result = tx.run(query, parameters=params)
         return result.single()["exito"]
 
-    def agregar_relacion(self, ciudad1, ciudad2, distancia):
+    def add_route(self, ciudad1, ciudad2, distancia):
         """Conecta dos ciudades existentes con una distancia dada"""
         with self._lock:
             return self._execute_write(
-                self._tx_agregar_relacion,
+                self._tx_add_route,
                 ciudad1=ciudad1,
                 ciudad2=ciudad2,
                 distancia=distancia
             )
 
     @staticmethod
-    def _tx_agregar_relacion(tx, ciudad1, ciudad2, distancia):
+    def _tx_add_route(tx, ciudad1, ciudad2, distancia):
         query = """
         MATCH (a:Ciudad {nombre: $ciudad1})
         MATCH (b:Ciudad {nombre: $ciudad2})
@@ -238,13 +230,13 @@ class Neo4jGraphManager:
         result = tx.run(query, parameters= params)
         return result.single()["exito"]
 
-    def eliminar_nodo(self, nombre_ciudad):
+    def delete_city(self, nombre_ciudad):
         """Elimina una ciudad y todas sus relaciones"""
         with self._lock:
-            return self._execute_write(self._tx_eliminar_nodo, nombre=nombre_ciudad)
+            return self._execute_write(self._tx_delete_city, nombre=nombre_ciudad)
 
     @staticmethod
-    def _tx_eliminar_nodo(tx, nombre):
+    def _tx_delete_city(tx, nombre):
         query = """
         MATCH (c:Ciudad {nombre: $nombre})
         OPTIONAL MATCH (c)-[r]-()
@@ -254,17 +246,17 @@ class Neo4jGraphManager:
         result = tx.run(query, nombre=nombre)
         return result.single()["eliminado"]
 
-    def eliminar_relacion(self, ciudad1, ciudad2):
+    def delete_route(self, ciudad1, ciudad2):
         """Elimina la conexión directa entre dos ciudades"""
         with self._lock:
             return self._execute_write(
-                self._tx_eliminar_relacion,
+                self._tx_delete_route,
                 ciudad1=ciudad1,
                 ciudad2=ciudad2
             )
 
     @staticmethod
-    def _tx_eliminar_relacion(tx, ciudad1, ciudad2):
+    def _tx_delete_route(tx, ciudad1, ciudad2):
         query = """
         MATCH (a:Ciudad {nombre: $ciudad1})-[r:CONECTADO_A]-(b:Ciudad {nombre: $ciudad2})
         DELETE r
@@ -282,19 +274,8 @@ class Neo4jGraphManager:
         """Destructor que cierra la conexión"""
         self.close()
 
-# Instancia global para usar en la aplicación
-driver = Neo4jGraphManager(
+driver = GraphManager(
     "neo4j+s://c547b307.databases.neo4j.io",
     "neo4j",
     "FlX8y9LhsGZdOzn2sPv05t6izI5aB0hiycJCVZQ8r5k"
 )
-
-# Funciones de conveniencia para mantener compatibilidad
-def obtener_grafo(tx):
-    return driver._tx_obtener_grafo(tx)
-
-def agregar_ciudad(tx, ciudad1, ciudad2, nueva_ciudad, distancia1, lat, lon):
-    return driver._tx_agregar_intermedia(tx, ciudad1, ciudad2, nueva_ciudad, distancia1, lat, lon)
-
-def eliminar_ciudad(tx, intermedia, ciudad1, ciudad2):
-    return driver._tx_eliminar_intermedia(tx, intermedia, ciudad1, ciudad2)

@@ -1,9 +1,9 @@
 import heapq
 import math
-from services.graph_connection import Neo4jGraphManager  # Cambiamos la importación
+from services.graph_connection import GraphManager  # Cambiamos la importación
 
 # Configuración del manager (debería inicializarse en tu aplicación principal)
-neo4j_manager = Neo4jGraphManager(
+neo4j_manager = GraphManager(
     "neo4j+s://c547b307.databases.neo4j.io",
     "neo4j",
     "FlX8y9LhsGZdOzn2sPv05t6izI5aB0hiycJCVZQ8r5k"
@@ -16,7 +16,7 @@ _graph_version = 0
 def get_graph(refresh=False):
     global _cached_graph, _graph_version
     if refresh or _cached_graph is None:
-        _cached_graph = neo4j_manager.obtener_grafo()  # Usamos el manager
+        _cached_graph = neo4j_manager.obtain_graph()  # Usamos el manager
         _graph_version += 1
     return _cached_graph, _graph_version
 
@@ -37,15 +37,12 @@ def haversine_heuristic(origin, destination, grafo):
     dlon = lon2 - lon1
     a = math.sin(dlat/2)**2 + math.cos(lat1)*math.cos(lat2)*math.sin(dlon/2)**2
     c = 2 * math.asin(math.sqrt(a))
-    r = 6371  # Radio de la Tierra en km
+    r = 6371
     return c * r
 
 def a_star_search(origin, destination, grafo):
     """Implementación del algoritmo A*"""
     # Verificar que las ciudades existen en el grafo
-    if origin not in grafo or destination not in grafo:
-        raise KeyError("Una de las ciudades no existe en el grafo")
-    
     fringe = []
     heapq.heappush(fringe, (0, origin))
     parent = {origin: None}
@@ -80,9 +77,6 @@ def a_star_search(origin, destination, grafo):
 
 def greedy_search(origin, destination, grafo):
     """Implementación del algoritmo Greedy Best-First Search"""
-    if origin not in grafo or destination not in grafo:
-        raise KeyError("Una de las ciudades no existe en el grafo")
-        
     fringe = []
     heapq.heappush(fringe, (0, origin))
     parent = {origin: None}
@@ -118,10 +112,7 @@ def greedy_search(origin, destination, grafo):
     return route, total_distance
 
 def dijkstra_search(origin, destination, grafo):
-    """Implementación del algoritmo de Dijkstra"""
-    if origin not in grafo or destination not in grafo:
-        raise KeyError("Una de las ciudades no existe en el grafo")
-        
+    """Implementación del algoritmo de Dijkstra"""        
     fringe = []
     heapq.heappush(fringe, (0, origin))
     parent = {origin: None}
