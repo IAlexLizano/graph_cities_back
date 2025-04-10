@@ -42,10 +42,10 @@ def haversine_heuristic(origin, destination, grafo):
 
 def a_star_search(origin, destination, grafo):
     """Implementación del algoritmo A*"""
-    # Verificar que las ciudades existen en el grafo
+    # Cola de prioridad (fringe) para explorar los nodos con menor costo estimado
     fringe = []
-    heapq.heappush(fringe, (0, origin))
-    parent = {origin: None}
+    heapq.heappush(fringe, (0, origin)) # Guarda el nodo padre de cada ciudad para reconstruir el camino
+    parent = {origin: None}             # Guarda el costo acumulado desde el origen hasta cada ciudad
     actual_cost = {origin: 0}
     
     while fringe:
@@ -55,14 +55,14 @@ def a_star_search(origin, destination, grafo):
             break
         
         for next, cost in grafo[actual]["vecinos"].items():
-            new_cost = actual_cost[actual] + cost
+            new_cost = actual_cost[actual] + cost       # g(n): sacamos el costo total del origen hasta el vecino
             if next not in actual_cost or new_cost < actual_cost[next]:
                 actual_cost[next] = new_cost
-                prioridad = new_cost + haversine_heuristic(next, destination, grafo)
+                prioridad = new_cost + haversine_heuristic(next, destination, grafo)    #Sumamos la distancia real con la estimada
                 heapq.heappush(fringe, (prioridad, next))
                 parent[next] = actual
 
-    # Reconstruir el camino
+    # Reconstruimos el camino desde el destino al origen usando el diccionario 'parent'
     route = []
     actual = destination
     while actual != origin:
@@ -77,20 +77,22 @@ def a_star_search(origin, destination, grafo):
 
 def greedy_search(origin, destination, grafo):
     """Implementación del algoritmo Greedy Best-First Search"""
+    # prioriza por heurística (distancia estimada al destino)
     fringe = []
     heapq.heappush(fringe, (0, origin))
-    parent = {origin: None}
-    actual_distance = {origin: 0}
+    parent = {origin: None}         # Guarda el nodo anterior (padre) de cada nodo visitado
+    actual_distance = {origin: 0}   # Guarda la distancia real recorrida desde el origen
 
     while fringe:
+        # Extraemos el nodo con menor heurística (más prometedor)
         actual = heapq.heappop(fringe)[1]
         
         if actual == destination:
             break
         
         for next, distance in grafo[actual]["vecinos"].items():
-            if next not in parent:
-                priority = haversine_heuristic(next, destination, grafo)
+            if next not in parent:      # Solo visitamos nodos no explorados
+                priority = haversine_heuristic(next, destination, grafo)    #Distancia estimada
                 heapq.heappush(fringe, (priority, next))
                 parent[next] = actual
                 actual_distance[next] = actual_distance[actual] + distance
@@ -112,13 +114,15 @@ def greedy_search(origin, destination, grafo):
     return route, total_distance
 
 def dijkstra_search(origin, destination, grafo):
-    """Implementación del algoritmo de Dijkstra"""        
+    """Implementación del algoritmo de Dijkstra"""    
+    # Cola de prioridad: cada elemento es (costo acumulado, nodo)    
     fringe = []
     heapq.heappush(fringe, (0, origin))
     parent = {origin: None}
-    actual_cost = {origin: 0}
+    actual_cost = {origin: 0}   # Guarda el costo más bajo encontrado hasta cada nodo
     
     while fringe:
+        # Extraemos el nodo con menor costo acumulado
         actual = heapq.heappop(fringe)[1]
         
         if actual == destination:
@@ -126,6 +130,7 @@ def dijkstra_search(origin, destination, grafo):
         
         for next, cost in grafo[actual]["vecinos"].items():
             new_cost = actual_cost[actual] + cost
+            # Si es un nuevo nodo o encontramos un camino más corto
             if next not in actual_cost or new_cost < actual_cost[next]:
                 actual_cost[next] = new_cost
                 heapq.heappush(fringe, (new_cost, next))
@@ -142,7 +147,7 @@ def dijkstra_search(origin, destination, grafo):
     route.append(origin)
     route.reverse()
     
-    return route, actual_cost.get(destination, float('inf'))
+    return route, actual_cost.get(destination, float('inf'))    
 
 def search_route(algorithm, origin, destination):
     """Función principal para ejecutar búsquedas"""
