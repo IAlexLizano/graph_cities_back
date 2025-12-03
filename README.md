@@ -10,7 +10,7 @@ Este proyecto proporciona un backend robusto para aplicaciones que requieren cal
 
 - **Búsqueda de Rutas**: Encuentra el camino óptimo entre dos ciudades utilizando diferentes algoritmos
 - **Algoritmos Implementados**:
-  - **A\* (A-Star)**: Búsqueda informada que utiliza heurística de distancia haversine
+  - **A* (A-Star)**: Búsqueda informada que utiliza heurística de distancia haversine
   - **Greedy (Voraz)**: Búsqueda que prioriza la cercanía al destino
   - **Dijkstra**: Encuentra el camino más corto garantizado
 - **Heurística Haversine**: Calcula distancias reales entre coordenadas geográficas
