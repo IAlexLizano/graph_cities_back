@@ -382,28 +382,25 @@ from dotenv import load_dotenv
 load_dotenv()
 ```
 
-## Mejoras Futuras
-
-- [ ] Implementar autenticación y autorización
-- [ ] Agregar tests unitarios y de integración
-- [ ] Crear archivo `requirements.txt` con todas las dependencias
-- [ ] Mover credenciales a variables de entorno
-- [ ] Agregar logging estructurado
-- [ ] Implementar caché para consultas frecuentes
-- [ ] Agregar validación de existencia de ciudades
-- [ ] Implementar rate limiting
-- [ ] Agregar métricas y monitoreo
-- [ ] Dockerizar la aplicación
-
-## Contribuciones
-
-Las contribuciones son bienvenidas. Por favor:
-
-1. Fork el proyecto
-2. Crea una rama para tu feature (`git checkout -b feature/AmazingFeature`)
-3. Commit tus cambios (`git commit -m 'Add some AmazingFeature'`)
-4. Push a la rama (`git push origin feature/AmazingFeature`)
-5. Abre un Pull Request
+## Colaboradores
+<table>
+  <tr>
+    <td align="center">
+      <a href="https://github.com/IAlexLizano">
+        <img src="https://github.com/IAlexLizano.png" width="100px;" alt="Alex Lizano"/><br />
+        <sub><b>Alex Lizano</b></sub>
+      </a><br />
+      <sub>💻 Desarrollador Backend</sub>
+    </td>
+    <td align="center">
+      <a href="https://github.com/Davidl2002">
+        <img src="https://github.com/Davidl2002.png" width="100px;" alt="David López"/><br />
+        <sub><b>David López</b></sub>
+      </a><br />
+      <sub>💻 Desarrollador Frontend</sub>
+    </td>
+  </tr>
+</table>
 
 ## Licencia
 
